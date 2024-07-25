@@ -105,7 +105,29 @@ namespace Unity.FPS.AI
         public Animator _animator;
         private CharacterController _controller;
 
+//from EnemyMobile.cs
+        [Tooltip("Fraction of the enemy's attack range at which it will stop moving towards target while attacking")]
+        [Range(0f, 1f)]
+        public float AttackStopDistanceRatio = 0.5f;
 
+        [Tooltip("The random hit damage effects")]
+        public ParticleSystem[] RandomHitSparks;
+
+        public ParticleSystem[] OnDetectVfx;
+        public AudioClip OnDetectSfx;
+
+        [Header("Sound")] public AudioClip MovementSound;
+        public MinMaxFloat PitchDistortionMovementSpeed;
+
+        public enum AIState
+        {
+            Patrol,
+            Follow,
+            Attack,
+        }
+        
+        public AIState AiState { get; private set; }
+////from EnemyMobile.cs end
  
 
 
@@ -332,6 +354,17 @@ namespace Unity.FPS.AI
             {
                 _verticalVelocity += Gravity * Time.deltaTime;
             }
+        }
+
+        void OnDamaged()
+        {
+            if (RandomHitSparks.Length > 0)
+            {
+                int n = Random.Range(0, RandomHitSparks.Length - 1);
+                RandomHitSparks[n].Play();
+            }
+
+            // Animator.SetTrigger(k_AnimOnDamagedParameter);
         }
 
     }

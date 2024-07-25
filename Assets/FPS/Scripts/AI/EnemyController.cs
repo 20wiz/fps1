@@ -154,6 +154,8 @@ namespace Unity.FPS.AI
                 gameObject);
             DebugUtility.HandleWarningIfDuplicateObjects<DetectionModule, EnemyController>(detectionModules.Length,
                 this, gameObject);
+            // Log the count of detection modules
+            // Debug.Log($"Number of DetectionModules found: {detectionModules.Length}");
             // Initialize detection module
             DetectionModule = detectionModules[0];
             DetectionModule.onDetectedTarget += OnDetectedTarget;
@@ -205,7 +207,20 @@ namespace Unity.FPS.AI
         {
             EnsureIsWithinLevelBounds();
 
-            DetectionModule.HandleTargetDetection(m_Actor, m_SelfColliders);
+            if (m_Actor == null)
+            {
+                Debug.Log("Enemy Update: Actor is null");
+            }
+
+            if (m_SelfColliders == null) {
+                Debug.Log("Enemy Update: m_SelfColliders is null");
+            }
+            if (DetectionModule != null)
+            {
+                DetectionModule.HandleTargetDetection(m_Actor, m_SelfColliders);
+            } else {
+                Debug.Log("Enemy Update: DetectionModule is null");
+            }
 
             Color currentColor = OnHitBodyGradient.Evaluate((Time.time - m_LastTimeDamaged) / FlashOnHitDuration);
             m_BodyFlashMaterialPropertyBlock.SetColor("_EmissionColor", currentColor);
@@ -242,7 +257,7 @@ namespace Unity.FPS.AI
 
         void OnDetectedTarget()
         {
-            onDetectedTarget.Invoke();
+            onDetectedTarget?.Invoke();
 
             // Set the eye default color and property block if the eye renderer is set
             if (m_EyeRendererData.Renderer != null)
