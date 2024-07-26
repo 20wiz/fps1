@@ -77,8 +77,8 @@ namespace Unity.FPS.AI
         public bool LockCameraPosition = false;
 
         // cinemachine
-        private float _cinemachineTargetYaw;
-        private float _cinemachineTargetPitch;
+        // private float _cinemachineTargetYaw;
+        // private float _cinemachineTargetPitch;
 
         // player
         private float _speed;
@@ -127,11 +127,14 @@ namespace Unity.FPS.AI
         }
         
         public AIState AiState { get; private set; }
+        
+        AudioSource m_AudioSource;
+
 ////from EnemyMobile.cs end
  
 
 
-        private StarterAssetsInputs _input;
+        private ControlInputs _input;
         private GameObject _mainCamera;
 
         private const float _threshold = 0.01f;
@@ -150,23 +153,37 @@ namespace Unity.FPS.AI
             }
         }
 
+        protected override void Start()
+        {
+            base.Start();
+            StartPerson();
+            StartMobile();
+        }
 
-        // private void Awake()
-        // {
-        //     // get a reference to our main camera
-        //     if (_mainCamera == null)
-        //     {
-        //         _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-        //     }
-        // }
+        protected override void Update()
+        {
+            base.Update();
+            UpdatePerson();
+            UpdateMobile();
+        }
+
+        private void Awake()
+        {
+            // get a reference to our main camera
+            if (_mainCamera == null)
+            {
+                _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
+            }
+        }
 
         private void StartPerson()
         {
-            _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+            // _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
             
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
-            _input = GetComponent<StarterAssetsInputs>();
+            _input = GetComponent<ControlInputs>();
+            Debug.Log("input: " + _input);
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
 #else
@@ -179,15 +196,159 @@ namespace Unity.FPS.AI
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
         }
+        void StartMobile() //from EnemyMobile.cs
+        {
+            // m_Enemy1Controller = GetComponent<Enemy1Controller>();
+            // DebugUtility.HandleErrorIfNullGetComponent<Enemy1Controller, Enemy1Mobile>(m_Enemy1Controller, this,
+            //     gameObject);
+
+            // onAttack += OnAttack;
+            // onDetectedTarget += OnDetectedTarget;
+            // onLostTarget += OnLostTarget;
+            SetPathDestinationToClosestNode();
+            onDamaged += OnDamaged;
+
+            // Start patrolling
+            AiState = AIState.Patrol;
+
+            // adding a audio source to play the movement sound on it
+            m_AudioSource = GetComponent<AudioSource>();
+            DebugUtility.HandleErrorIfNullGetComponent<AudioSource, Enemy1Mobile>(m_AudioSource, this, gameObject);
+            m_AudioSource.clip = MovementSound;
+            m_AudioSource.Play();
+        }
 
         private void UpdatePerson()
         {
             _hasAnimator = TryGetComponent(out _animator);
 
-            JumpAndGravity();
+            // JumpAndGravity();
             GroundedCheck();
             Move();
         }
+
+        void UpdateMobile()
+        {
+            UpdateAiStateTransitions();
+            UpdateCurrentAiState();
+
+            // float moveSpeed = NavMeshAgent.velocity.magnitude;
+
+            // // Update animator speed parameter
+            // Animator.SetFloat(k_AnimMoveSpeedParameter, moveSpeed);
+
+            // // changing the pitch of the movement sound depending on the movement speed
+            // m_AudioSource.pitch = Mathf.Lerp(PitchDistortionMovementSpeed.Min, PitchDistortionMovementSpeed.Max,
+            //     moveSpeed / NavMeshAgent.speed);
+        }
+
+        void UpdateAiStateTransitions()
+        {
+            // Handle transitions 
+            switch (AiState)
+            {
+                case AIState.Follow:
+                    // Transition to attack when there is a line of sight to the target
+                    if (IsSeeingTarget && IsTargetInAttackRange)
+                    {
+                        AiState = AIState.Attack;
+                        SetNavDestination(transform.position);
+                    }
+
+                    break;
+                case AIState.Attack:
+                    // Transition to follow when no longer a target in attack range
+                    if (!IsTargetInAttackRange)
+                    {
+                        AiState = AIState.Follow;
+                    }
+
+                    break;
+            }
+        }
+
+        void UpdateCurrentAiState()
+        {
+            // Handle logic 
+            switch (AiState)
+            {
+                case AIState.Patrol:
+                    UpdatePathDestination();
+                    SetNavDestination(GetDestinationOnPath());
+                    break;
+                case AIState.Follow:
+                    SetNavDestination(KnownDetectedTarget.transform.position);
+                    OrientTowards(KnownDetectedTarget.transform.position);
+                    OrientWeaponsTowards(KnownDetectedTarget.transform.position);
+                    break;
+                case AIState.Attack:
+                    if (Vector3.Distance(KnownDetectedTarget.transform.position,
+                            DetectionModule.DetectionSourcePoint.position)
+                        >= (AttackStopDistanceRatio * DetectionModule.AttackRange))
+                    {
+                        SetNavDestination(KnownDetectedTarget.transform.position);
+                    }
+                    else
+                    {
+                        SetNavDestination(transform.position);
+                    }
+
+                    OrientTowards(KnownDetectedTarget.transform.position);
+                    TryAtack(KnownDetectedTarget.transform.position);
+                    break;
+            }
+        }
+
+        // void OnAttack()
+        // {
+        //     Animator.SetTrigger(k_AnimAttackParameter);
+        // }
+
+        // void OnDetectedTarget()
+        // {
+        //     if (AiState == AIState.Patrol)
+        //     {
+        //         AiState = AIState.Follow;
+        //     }
+
+        //     for (int i = 0; i < OnDetectVfx.Length; i++)
+        //     {
+        //         OnDetectVfx[i].Play();
+        //     }
+
+        //     if (OnDetectSfx)
+        //     {
+        //         AudioUtility.CreateSFX(OnDetectSfx, transform.position, AudioUtility.AudioGroups.EnemyDetection, 1f);
+        //     }
+
+        //     Animator.SetBool(k_AnimAlertedParameter, true);
+        // }
+
+        // void OnLostTarget()
+        // {
+        //     if (AiState == AIState.Follow || AiState == AIState.Attack)
+        //     {
+        //         AiState = AIState.Patrol;
+        //     }
+
+        //     for (int i = 0; i < OnDetectVfx.Length; i++)
+        //     {
+        //         OnDetectVfx[i].Stop();
+        //     }
+
+        //     Animator.SetBool(k_AnimAlertedParameter, false);
+        // }
+
+        // void OnDamaged()
+        // {
+        //     if (RandomHitSparks.Length > 0)
+        //     {
+        //         int n = Random.Range(0, RandomHitSparks.Length - 1);
+        //         RandomHitSparks[n].Play();
+        //     }
+
+        //     Animator.SetTrigger(k_AnimOnDamagedParameter);
+        // }
 
         // private void LateUpdate()
         // {
@@ -211,8 +372,12 @@ namespace Unity.FPS.AI
             Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers,
                 QueryTriggerInteraction.Ignore);
 
+            if (_animator == null)
+            {
+                Debug.LogError("animator is null");
+            }
             // update animator if using character
-            if (_hasAnimator)
+            if (_hasAnimator )
             {
                 _animator.SetBool(_animIDGrounded, Grounded);
             }
@@ -221,6 +386,10 @@ namespace Unity.FPS.AI
 
         private void Move()
         {
+            if (_input == null)
+            {
+                Debug.LogError("input is null");
+            }
             // set target speed based on move speed, sprint speed and if sprint is pressed
             float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
 
@@ -263,6 +432,8 @@ namespace Unity.FPS.AI
             // if there is a move input rotate player when the player is moving
             if (_input.move != Vector2.zero)
             {
+                // Debug.Log("inputDirection: " + inputDirection);
+                // Debug.Log("_mainCamera: " + _mainCamera);
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
                                   _mainCamera.transform.eulerAngles.y;
                 float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
@@ -287,7 +458,7 @@ namespace Unity.FPS.AI
             }
         }
 
-                private void JumpAndGravity()
+        private void JumpAndGravity()
         {
             if (Grounded)
             {

@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace Unity.FPS.AI
 {
-	public class StarterAssetsInputs : MonoBehaviour
+	public class ControlInputs : MonoBehaviour //renamed from StarterAssetInputs
 	{
 		[Header("Character Input Values")]
 		public Vector2 move;
